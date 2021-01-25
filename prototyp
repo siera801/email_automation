@@ -1,0 +1,99 @@
+import win32com.client as client
+import os
+import shutil
+from zipfile import ZipFile
+
+path_automation = r"\\HE100167e010.emea1.cds.t-internal.com\g_08800532$\Trinity\automation_handling"
+path_bi = r"\\HE100167e010.emea1.cds.t-internal.com\g_08800532$\Trinity"
+outlook = client.Dispatch('Outlook.Application')
+namespace = outlook.GetNameSpace('MAPI')
+account = namespace.Folders['FMB CORE I/O']
+inbox = account.Folders['Posteingang']
+erledigt = account.Folders['01_erledigt']
+
+mail_items = [item for item in inbox.Items if item.Class == 43]
+
+for mail in mail_items:
+    all_attachments = mail.Attachments
+    for item in all_attachments:
+        attachment = item
+
+#Download der Anhänge und aussortieren von Bilder und ppt
+mail_items = [item for item in inbox.Items if item.Class == 43]
+for mail in mail_items:
+    all_attachments = mail.Attachments
+    for item in all_attachments:
+        attachment = item
+        report_name = attachment.FileName
+        case_sensitiv = attachment.FileName.lower()
+        if '.jpg' in case_sensitiv:
+            print('jpg gefunden, wird nicht verarbeitet')
+        elif '.png' in case_sensitiv:
+            print('png gefunden, wird nicht verarbeitet')
+        elif '.gif' in case_sensitiv:
+            print('gif gefunden, wird nicht verarbeitet')
+        elif '.ppt' in case_sensitiv:
+            print('ppt gefunden, wird nicht verarbeitet')
+        else:
+            attachment.SaveAsFile(r"\\HE100167e010.emea1.cds.t-internal.com\g_08800532$\Trinity\automation_handling" + '\\' + report_name)
+            print('Attachment saved: ' + report_name)
+            
+#E-Mail Objekte über die Liste abarbeiten und ablegen.
+for movetofolder in mail_items:
+    movetofolder.Move(erledigt)
+    print('Verschoben:', movetofolder.Subject)
+    
+files_bi = os.listdir(path_bi)
+files_download = os.listdir(path_automation)
+master_files = set([file for file in files_bi])
+automation_files = [file for file in files_download]
+
+#Finde Dateinamen die gleich sind und überschreibe
+for i in automation_files:
+    for m in master_files:
+        if i == m:
+            shutil.copy(path_automation+"/"+i, path_bi)
+            os.remove(path_automation+"/"+i)
+            print('Folgende Datei(en) wurden ohne manipulation kopiert und im alten Ordner gelöscht:', i)
+    if '.zip' in i:
+        if 'BrandIndex' in i:
+            # Create a ZipFile Object and load sample.zip in it
+            print('Brandindex gefunden:',i)
+            with ZipFile(path_automation+'/'+i, 'r') as zipObj:         
+                # Get a list of all archived file names from the zip
+                brandindex_zip = zipObj.namelist()
+                # Iterate over the file names
+                for fileName in brandindex_zip:
+                    # Check filename endswith csv
+                    if fileName == "Neg_Telekom_Benchmark_MA 1 week.xlsx":
+                        # Extract a single file from zip
+                        zipObj.extract(fileName, path_bi)
+                        print('Extrahiert: Neg_Telekom_Benchmark_MA 1 week.xlsx')                            
+                    elif fileName == "Pos_Telekom_Benchmark_MA 1 week.xlsx":
+                        zipObj.extract(fileName, path_bi)
+                        print('Extrahiert:',fileName)
+            os.remove(path_automation+"/"+i)
+        elif 'mapp-Traffic-Hilft-Community' in i:
+            # Create a ZipFile Object and load sample.zip in it
+            print('zip und Telekom Hilft gefunden:',i)
+            with ZipFile(path_automation+'/'+i, 'r') as zipObj:
+                # Extract all the contents of zip file in different directory
+                zipObj.extractall(path_automation)
+                print('Folgende zip-File entpackt:',i)
+            os.remove(path_automation+"/"+i)
+    elif 'mapp-' in i:
+        print(i)
+        os.rename(path_automation+"/"+i,path_automation+"/"+i[5:-28]+".csv")
+        shutil.copy(path_automation+"/"+i[5:-28]+".csv", path_bi)   
+        os.remove(path_automation+"/"+i[5:-28]+".csv")
+        print('Folgende Dateie wurden umbenannt und gelöscht: ',i)
+    elif 'TSKPI' in i:
+        os.rename(path_automation+"/"+i,path_automation+'/TSKPI.xlsx')
+        shutil.copy(path_automation+'/TSKPI.xlsx', path_bi)
+        os.remove(path_automation+'/TSKPI.xlsx')
+        print('Yeah, Andreas hat geliefert: ',i)
+    elif '_trends_' in i:
+        os.rename(path_automation+"/"+i,path_automation+"/"+i[:-20]+".json")
+        shutil.copy(path_automation+"/"+i[:-20]+".json", path_bi)
+        print('Folgende Dateien wurden umbenannt und gelöscht: ',i)
+        os.remove(path_automation+"/"+i[:-20]+".json")
